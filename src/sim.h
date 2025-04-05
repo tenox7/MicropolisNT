@@ -1,9 +1,9 @@
-/* sim.h - Core simulation structures and functions for MicropolisNT
+/* simulation.h - Core simulation structures and functions for MicropolisNT
  * Based on original Micropolis code from MicropolisLegacy project
  */
 
-#ifndef _SIM_H
-#define _SIM_H
+#ifndef _SIMULATION_H
+#define _SIMULATION_H
 
 #include <windows.h>
 
@@ -509,4 +509,4 @@ void UpdateNuclearPower(int x, int y);  /* Update nuclear power plant animations
 void UpdateAirportRadar(int x, int y);  /* Update airport radar animation */
 void UpdateSpecialAnimations(void); /* Update all special animations */
 
-#endif /* _SIM_H */
+#endif /* _SIMULATION_H */

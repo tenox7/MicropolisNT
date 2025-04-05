@@ -9,6 +9,11 @@
 #include <time.h>
 #include <windows.h>
 
+#ifndef MB_ICONWARNING
+#define MB_ICONWARNING	MB_ICONASTERISK
+#define MB_ICONERROR	MB_ICONSTOP
+#endif
+
 /* External log functions */
 extern void addGameLog(const char *format, ...);
 extern void addDebugLog(const char *format, ...);

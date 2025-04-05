@@ -9,6 +9,11 @@
 #include <string.h>
 #include <windows.h>
 
+#ifndef MB_ICONWARNING
+#define MB_ICONWARNING  MB_ICONASTERISK
+#define MB_ICONERROR    MB_ICONSTOP
+#endif
+
 /* External reference to the toolbar width */
 extern int toolbarWidth;
 
@@ -1475,23 +1480,23 @@ static HBITMAP hToolBitmaps[17]; /* Tool bitmaps */
 
 /* File names for tool bitmaps - order matches toolbar position */
 static const char *toolBitmapFiles[17] = {
-    "residential",   /* 0 - Residential */
-    "commercial",    /* 1 - Commercial */
-    "industrial",    /* 2 - Industrial */
-    "firestation",   /* 3 - Fire Station */
-    "policestation", /* 4 - Police Station */
-    "powerline",     /* 5 - Wire */
-    "road",          /* 6 - Road */
-    "rail",          /* 7 - Rail */
-    "park",          /* 8 - Park */
-    "stadium",       /* 9 - Stadium */
-    "seaport",       /* 10 - Seaport */
-    "powerplant",    /* 11 - Coal Power Plant */
-    "nuclear",       /* 12 - Nuclear Power Plant */
-    "airport",       /* 13 - Airport */
-    "bulldozer",     /* 14 - Bulldozer */
-    "query",         /* 15 - Query */
-    "bulldozer"      /* 16 - No Tool (use a hand icon if available, otherwise bulldozer) */
+    "resident",		/* 0 - Residential */
+    "commerce",		/* 1 - Commercial */
+    "industrl",		/* 2 - Industrial */
+    "firest",		/* 3 - Fire Station */
+    "policest",		/* 4 - Police Station */
+    "powerln",		/* 5 - Wire */
+    "road",			/* 6 - Road */
+    "rail",         /* 7 - Rail */
+    "park",         /* 8 - Park */
+    "stadium",      /* 9 - Stadium */
+    "seaport",      /* 10 - Seaport */
+    "powerpl",		/* 11 - Coal Power Plant */
+    "nuclear",      /* 12 - Nuclear Power Plant */
+    "airport",      /* 13 - Airport */
+    "bulldzr",		/* 14 - Bulldozer */
+    "query",        /* 15 - Query */
+    "bulldzr"		/* 16 - No Tool (use a hand icon if available, otherwise bulldozer) */
 };
 
 /* Function to process toolbar button clicks */
@@ -1836,7 +1841,8 @@ void LoadToolbarBitmaps(void) {
 
         /* Load the bitmap */
         hToolBitmaps[i] =
-            LoadImage(NULL, filename, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE | LR_CREATEDIBSECTION);
+			loadBitmapFile(filename);
+//            LoadImage(NULL, filename, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE | LR_CREATEDIBSECTION);
 
         if (hToolBitmaps[i] == NULL) {
             /* Log error if bitmap loading fails */
@@ -1984,15 +1990,14 @@ void DrawToolIcon(HDC hdc, int toolType, int x, int y, int isSelected) {
 
 /* Create toolbar window */
 void CreateToolbar(HWND hwndParent, int x, int y, int width, int height) {
-    WNDCLASSEX wc;
+    WNDCLASS wc;
     RECT clientRect;
 
     /* Load the tool bitmaps */
     LoadToolbarBitmaps();
 
     /* Register the toolbar window class if not already done */
-    if (!GetClassInfoEx(NULL, "MicropolisToolbar", &wc)) {
-        wc.cbSize = sizeof(WNDCLASSEX);
+    if (!GetClassInfo(NULL, "MicropolisToolbar", &wc)) {
         wc.style = CS_HREDRAW | CS_VREDRAW;
         wc.lpfnWndProc = ToolbarProc;
         wc.cbClsExtra = 0;
@@ -2003,9 +2008,8 @@ void CreateToolbar(HWND hwndParent, int x, int y, int width, int height) {
         wc.hbrBackground = (HBRUSH)GetStockObject(LTGRAY_BRUSH);
         wc.lpszMenuName = NULL;
         wc.lpszClassName = "MicropolisToolbar";
-        wc.hIconSm = NULL;
 
-        RegisterClassEx(&wc);
+        RegisterClass(&wc);
     }
 
     /* Create the toolbar window */
@@ -2933,3 +2937,82 @@ int HandleToolMouse(int mouseX, int mouseY, int xOffset, int yOffset) {
     /* Apply the current tool */
     return ApplyTool(mapX, mapY);
 }
+
+#if(WINVER <= 0x0351)
+void CheckMenuRadioItem(){}
+
+// Function to load a bitmap from a file and handle different palette sizes
+HBITMAP LoadImage(LPCSTR filePath) {
+    BITMAPFILEHEADER bmfHeader;
+    BITMAPINFOHEADER bmiHeader;
+    HBITMAP hBitmap = NULL;
+    RGBQUAD *colorTable = NULL;
+    BYTE *bitmapBits = NULL;
+    FILE *file;
+	HDC hdc;
+
+	hdc = GetDC(hwndMain); // Get a handle to the screen DC
+
+    // Open the file in binary mode
+    file = fopen(filePath, "rb");
+    if (file == NULL) {
+        MessageBox(NULL, "Failed to open the file!", "Error", MB_OK | MB_ICONERROR);
+	addDebugLog("LoadBitmapFromFile failed to load %s\n",filePath);
+        return NULL;
+    }
+
+    // Read the BITMAPFILEHEADER
+    fread(&bmfHeader, sizeof(BITMAPFILEHEADER), 1, file);
+    if (bmfHeader.bfType != 0x4D42) { // Check for 'BM' signature
+        MessageBox(NULL, "Not a valid BMP file!", "Error", MB_OK | MB_ICONERROR);
+        fclose(file);
+        return NULL;
+    }
+
+    // Read the BITMAPINFOHEADER
+    fread(&bmiHeader, sizeof(BITMAPINFOHEADER), 1, file);
+
+    // Handle indexed color bitmaps (palettes)
+    if (bmiHeader.biBitCount <= 8) {
+        // Calculate the size of the palette
+        size_t colorTableSize = (1 << bmiHeader.biBitCount) * sizeof(RGBQUAD);
+        colorTable = (RGBQUAD *)malloc(colorTableSize);
+        if (colorTable == NULL) {
+            MessageBox(NULL, "Failed to allocate memory for color table!", "Error", MB_OK | MB_ICONERROR);
+            fclose(file);
+            return NULL;
+        }
+        fread(colorTable, colorTableSize, 1, file);
+    }
+addDebugLog("bmiHeader.biBitCount is %d\n",bmiHeader.biBitCount);
+
+    // Allocate memory for the bitmap bits
+    bitmapBits = (BYTE *)malloc(bmiHeader.biSizeImage);
+    if (bitmapBits == NULL) {
+        MessageBox(NULL, "Failed to allocate memory for bitmap bits!", "Error", MB_OK | MB_ICONERROR);
+        free(colorTable);
+        fclose(file);
+        return NULL;
+    }
+
+    // Move file pointer to the start of bitmap data and read it
+    fseek(file, bmfHeader.bfOffBits, SEEK_SET);
+    fread(bitmapBits, 1, bmiHeader.biSizeImage, file);
+    fclose(file);
+
+    // Create the HBITMAP
+    hBitmap = CreateDIBitmap(hdc, &bmiHeader, CBM_INIT, bitmapBits, 
+                             (BITMAPINFO *)&bmiHeader, DIB_RGB_COLORS);
+
+    // Clean up allocated memory
+    free(colorTable);
+    free(bitmapBits);
+
+    if (hBitmap == NULL) {
+        MessageBox(NULL, "Failed to create HBITMAP!", "Error", MB_OK | MB_ICONERROR);
+    }
+addDebugLog("LoadBitmapFromFile loaded %s\n",filePath);
+    return hBitmap;
+}
+
+#endif
